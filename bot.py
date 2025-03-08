@@ -1,25 +1,5 @@
-#    This file is part of the AutoAnime distribution.
-#    Copyright (c) 2024 Kaif_00z
-#
-#    This program is free software: you can redistribute it and/or modify
-#    it under the terms of the GNU General Public License as published by
-#    the Free Software Foundation, version 3.
-#
-#    This program is distributed in the hope that it will be useful, but
-#    WITHOUT ANY WARRANTY; without even the implied warranty of
-#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU
-#    General Public License for more details.
-#
-# License can be found in <
-# https://github.com/kaif-00z/AutoAnimeBot/blob/main/LICENSE > .
-
-# if you are using this following code then don't forgot to give proper
-# credit to t.me/kAiF_00z (github.com/kaif-00z)
-
 from traceback import format_exc
-
 from telethon import Button, events
-
 from core.bot import Bot
 from core.executors import Executors
 from database import DataBase
@@ -31,6 +11,22 @@ from libs.ariawarp import Torrent
 from libs.logger import LOGS, Reporter
 from libs.subsplease import SubsPlease
 
+# Flask সংযুক্ত করা হচ্ছে
+from flask import Flask
+import threading
+import os
+
+# Flask অ্যাপ তৈরি করা হচ্ছে
+app = Flask(__name__)
+
+@app.route('/health')
+def health_check():
+    return "Bot is running!", 200
+
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))  # ডিফল্ট পোর্ট 5000, তবে পরিবেশ ভেরিয়েবল থেকে সেট করা যাবে
+    app.run(host="0.0.0.0", port=port, debug=False)
+
 tools = Tools()
 tools.init_dir()
 bot = Bot()
@@ -40,29 +36,22 @@ torrent = Torrent()
 schedule = ScheduleTasks(bot)
 admin = AdminUtils(dB, bot)
 
-
-@bot.on(
-    events.NewMessage(
-        incoming=True, pattern="^/start ?(.*)", func=lambda e: e.is_private
-    )
-)
+@bot.on(events.NewMessage(incoming=True, pattern="^/start ?(.*)", func=lambda e: e.is_private))
 async def _start(event):
     xnx = await event.reply("`Please Wait...`")
     msg_id = event.pattern_match.group(1)
     await dB.add_broadcast_user(event.sender_id)
     if Var.FORCESUB_CHANNEL and Var.FORCESUB_CHANNEL_LINK:
         is_user_joined = await bot.is_joined(Var.FORCESUB_CHANNEL, event.sender_id)
-        if is_user_joined:
-            pass
-        else:
+        if not is_user_joined:
             return await xnx.edit(
-                f"**Please Join The Following Channel To Use This Bot 🫡**",
+                "**Please Join The Following Channel To Use This Bot 🫡**",
                 buttons=[
                     [Button.url("🚀 JOIN CHANNEL", url=Var.FORCESUB_CHANNEL_LINK)],
                     [
                         Button.url(
                             "♻️ REFRESH",
-                            url=f"https://t.me/{((await bot.get_me()).username)}?start={msg_id}",
+                            url=f"https://t.me/{(await bot.get_me()).username}?start={msg_id}",
                         )
                     ],
                 ],
@@ -88,57 +77,43 @@ async def _start(event):
             buttons=[
                 [
                     Button.url("👨‍💻 DEV", url="t.me/RahatMx"),
-                    Button.url(
-                        "🕸️ Update Channel",
-                        url="https://t.me/AnimeTaboo",
-                    ),
+                    Button.url("🕸️ Update Channel", url="https://t.me/AnimeTaboo"),
                 ]
             ],
         )
     await xnx.delete()
 
-
-@bot.on(
-    events.NewMessage(incoming=True, pattern="^/about", func=lambda e: e.is_private)
-)
+@bot.on(events.NewMessage(incoming=True, pattern="^/about", func=lambda e: e.is_private))
 async def _(e):
     await admin._about(e)
-
 
 @bot.on(events.callbackquery.CallbackQuery(data="slog"))
 async def _(e):
     await admin._logs(e)
 
-
 @bot.on(events.callbackquery.CallbackQuery(data="sret"))
 async def _(e):
     await admin._restart(e, schedule)
-
 
 @bot.on(events.callbackquery.CallbackQuery(data="entg"))
 async def _(e):
     await admin._encode_t(e)
 
-
 @bot.on(events.callbackquery.CallbackQuery(data="butg"))
 async def _(e):
     await admin._btn_t(e)
-
 
 @bot.on(events.callbackquery.CallbackQuery(data="scul"))
 async def _(e):
     await admin._sep_c_t(e)
 
-
 @bot.on(events.callbackquery.CallbackQuery(data="cast"))
 async def _(e):
     await admin.broadcast_bt(e)
 
-
 @bot.on(events.callbackquery.CallbackQuery(data="bek"))
 async def _(e):
     await e.edit(buttons=admin.admin_panel())
-
 
 async def anime(data):
     try:
@@ -149,12 +124,7 @@ async def anime(data):
             chat_info = await tools.get_chat_info(bot, anime_info, dB)
             await poster.edit(
                 buttons=[
-                    [
-                        Button.url(
-                            f"EPISODE {anime_info.data.get('episode_number', '')}".strip(),
-                            url=chat_info["invite_link"],
-                        )
-                    ]
+                    [Button.url(f"EPISODE {anime_info.data.get('episode_number', '')}".strip(), url=chat_info["invite_link"])]
                 ]
             )
             poster = await tools._poster(bot, anime_info, chat_info["chat_id"])
@@ -196,9 +166,11 @@ async def anime(data):
     except BaseException:
         LOGS.error(str(format_exc()))
 
-
-try:
-    bot.loop.run_until_complete(subsplease.on_new_anime(anime))
-    bot.run()
-except KeyboardInterrupt:
-    subsplease._exit()
+# Flask এবং টেলিগ্রাম বট একসাথে চালানোর জন্য থ্রেড ব্যবহার করা হচ্ছে
+if __name__ == "__main__":
+    threading.Thread(target=run_flask).start()  # Flask চালু করা
+    try:
+        bot.loop.run_until_complete(subsplease.on_new_anime(anime))
+        bot.run()
+    except KeyboardInterrupt:
+        subsplease._exit()
