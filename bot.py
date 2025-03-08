@@ -1,5 +1,11 @@
+import os
+import threading
 from traceback import format_exc
+
+# Flask সংযুক্ত করা হচ্ছে
+from flask import Flask
 from telethon import Button, events
+
 from core.bot import Bot
 from core.executors import Executors
 from database import DataBase
@@ -11,21 +17,20 @@ from libs.ariawarp import Torrent
 from libs.logger import LOGS, Reporter
 from libs.subsplease import SubsPlease
 
-# Flask সংযুক্ত করা হচ্ছে
-from flask import Flask
-import threading
-import os
-
 # Flask অ্যাপ তৈরি করা হচ্ছে
 app = Flask(__name__)
 
-@app.route('/health')
+
+@app.route("/health")
 def health_check():
     return "Bot is running!", 200
 
+
 def run_flask():
-    port = int(os.environ.get("PORT", 5000))  # ডিফল্ট পোর্ট 5000, তবে পরিবেশ ভেরিয়েবল থেকে সেট করা যাবে
+    # ডিফল্ট পোর্ট 5000, তবে পরিবেশ ভেরিয়েবল থেকে সেট করা যাবে
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=False)
+
 
 tools = Tools()
 tools.init_dir()
@@ -36,7 +41,12 @@ torrent = Torrent()
 schedule = ScheduleTasks(bot)
 admin = AdminUtils(dB, bot)
 
-@bot.on(events.NewMessage(incoming=True, pattern="^/start ?(.*)", func=lambda e: e.is_private))
+
+@bot.on(
+    events.NewMessage(
+        incoming=True, pattern="^/start ?(.*)", func=lambda e: e.is_private
+    )
+)
 async def _start(event):
     xnx = await event.reply("`Please Wait...`")
     msg_id = event.pattern_match.group(1)
@@ -83,37 +93,48 @@ async def _start(event):
         )
     await xnx.delete()
 
-@bot.on(events.NewMessage(incoming=True, pattern="^/about", func=lambda e: e.is_private))
+
+@bot.on(
+    events.NewMessage(incoming=True, pattern="^/about", func=lambda e: e.is_private)
+)
 async def _(e):
     await admin._about(e)
+
 
 @bot.on(events.callbackquery.CallbackQuery(data="slog"))
 async def _(e):
     await admin._logs(e)
 
+
 @bot.on(events.callbackquery.CallbackQuery(data="sret"))
 async def _(e):
     await admin._restart(e, schedule)
+
 
 @bot.on(events.callbackquery.CallbackQuery(data="entg"))
 async def _(e):
     await admin._encode_t(e)
 
+
 @bot.on(events.callbackquery.CallbackQuery(data="butg"))
 async def _(e):
     await admin._btn_t(e)
+
 
 @bot.on(events.callbackquery.CallbackQuery(data="scul"))
 async def _(e):
     await admin._sep_c_t(e)
 
+
 @bot.on(events.callbackquery.CallbackQuery(data="cast"))
 async def _(e):
     await admin.broadcast_bt(e)
 
+
 @bot.on(events.callbackquery.CallbackQuery(data="bek"))
 async def _(e):
     await e.edit(buttons=admin.admin_panel())
+
 
 async def anime(data):
     try:
@@ -124,7 +145,12 @@ async def anime(data):
             chat_info = await tools.get_chat_info(bot, anime_info, dB)
             await poster.edit(
                 buttons=[
-                    [Button.url(f"EPISODE {anime_info.data.get('episode_number', '')}".strip(), url=chat_info["invite_link"])]
+                    [
+                        Button.url(
+                            f"EPISODE {anime_info.data.get('episode_number', '')}".strip(),
+                            url=chat_info["invite_link"],
+                        )
+                    ]
                 ]
             )
             poster = await tools._poster(bot, anime_info, chat_info["chat_id"])
@@ -165,6 +191,7 @@ async def anime(data):
                 await reporter.msg.delete()
     except BaseException:
         LOGS.error(str(format_exc()))
+
 
 # Flask এবং টেলিগ্রাম বট একসাথে চালানোর জন্য থ্রেড ব্যবহার করা হচ্ছে
 if __name__ == "__main__":
